@@ -31,14 +31,18 @@ content-type: application/json
     "purchase_note": "This is purchase_note",
     "sold_individually": "no",
     "yith_brand": "3M",
+    "stock_status": "instock",
+    "tags": ["tag1","tag2"],
     "images": [
         "https://multimedia.3m.com/mws/media/1599039P/3m-speedglas-heavy-duty-welding-helmet-g5-01-without-welding-filter.jpg",
         "https://multimedia.3m.com/mws/media/1920696P/3m-speedglas-heavy-duty-welding-helmet-g5-01-46-0099-35.jpg"
     ],
     "categories": ["Clamps", "Sleeves and Ferrules", "Teaser"],
     "specifications": {
-        "Battery Life": ["6 Hour"], "Battery Type": ["Economy Battery"],
-"Brand": ["Versaflo™"], "Specifications Met": ["NIOSH Approved"]
+        "Battery Life": ["6 Hour"],
+        "Battery Type": ["Economy Battery"],
+        "Brand": ["Versaflo™"],
+        "Specifications Met": ["NIOSH Approved"]
     },
     "variations": [
         {
@@ -65,6 +69,9 @@ content-type: application/json
     "attachments": "<p>Document attachment tab - Woomart theme specific</p><p>Ignore if other theme</p>"
 }
 ```
+
+### What is still missing?
++ individual variation price, sku and supporting details
 
 ## License
 Feel free to use in your projects!
