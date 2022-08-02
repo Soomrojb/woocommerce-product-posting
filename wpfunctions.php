@@ -55,7 +55,7 @@ if (!function_exists('add_variable_product')) :
                 "post_title"        =>  $postname,
                 "post_content"      =>  $data["long_description"],
                 "post_excerpt"      =>  $data["short_description"],
-                "post_status"       =>  "draft",
+                "post_status"       =>  "publish",
                 "ping_status"       =>  "closed",
                 "post_type"         =>  "product"
             );
@@ -91,13 +91,20 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
+            /* add tags */
+            if (isset($data['tags']) && !empty($data['tags']))
+            {
+                $tags = $data['tags'];
+                wp_set_object_terms( $product_id, $tags, 'product_tag', true );
+            }
+
             if (is_array($allvariations) && empty($allvariations))
             {
                 /* update simple product basic details */
-                $modifiers = array("sku","price","sale_price","regular_price","purchase_note","sold_individually");
+                $modifiers = array("sku","price","sale_price","regular_price","purchase_note","sold_individually","stock_status");
                 foreach ($modifiers as $modifier)
                 {
-                    if (isset($data[$modifier]))
+                    if (isset($data[$modifier]) && !empty($data[$modifier]))
                     {
                         $status = get_post_meta($product_id, '_'.$modifier );
                         if (empty($status)) {
@@ -107,7 +114,7 @@ if (!function_exists('add_variable_product')) :
                         }
                     }
                 }
-            
+
             } else {
                 /* add variation along with attributes and price */
                 wp_set_object_terms($product_id, 'variable', 'product_type');
@@ -385,13 +392,20 @@ if (!function_exists('add_variable_product')) :
             /* product already exists */
             $product_id = $post_status->ID;
             $product = wc_get_product($product_id);
-            $attributes = $product->attributes;
-            if (isset($attributes) && empty($attributes)) {
+
+            /* identify product-type */
+            $product_type = 'simple';
+            if (!empty($product->is_type( 'variable' ))) {
+                $product_type = 'variable';
+            }
+
+            if ($product_type == 'simple')
+            {
                 /* update simple product basic details */
-                $modifiers = array("sku","price","sale_price","regular_price","purchase_note","sold_individually");
+                $modifiers = array("sku","price","sale_price","regular_price","purchase_note","sold_individually","stock_status");
                 foreach ($modifiers as $modifier)
                 {
-                    if (isset($data[$modifier]))
+                    if (isset($data[$modifier]) && !empty($data[$modifier]))
                     {
                         $status = get_post_meta($product_id, '_'.$modifier );
                         if (empty($status)) {
@@ -401,11 +415,19 @@ if (!function_exists('add_variable_product')) :
                         }
                     }
                 }
+
+                /* add tags */
+                if (isset($data['tags']) && !empty($data['tags']))
+                {
+                    $tags = $data['tags'];
+                    wp_set_object_terms( $product_id, $tags, 'product_tag', true );
+                }
+             
             } else {
                 /* variable product */
             }
 
-            $response = new WP_REST_Response( array("product_id" => $product_id) );
+            $response = new WP_REST_Response( array("product_id" => $product_id, "product_type" => $product_type) );
             $response->set_status(200);
             return $response;
         
