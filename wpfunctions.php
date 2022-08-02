@@ -6,7 +6,7 @@ Custom WooCommerce API for posting bulk products
 @Author: Janib Soomro
 @Contact: soomrojb@gmail.com | +92-333-3640375
 @Dated: 07/16/2022
-@Updated: 07/28/2022
+@Updated: 08/03/2022
 ############################################################
 */
 
@@ -28,7 +28,7 @@ endif;
 if (!function_exists('add_variable_product')) :
     function add_variable_product( WP_REST_Request $request)
     {
-
+        $data = $request->get_params();
         $allvariations = $data['variations'];
         $allimages = $data['images'];
         $allcategories = $data['categories'];
@@ -44,9 +44,11 @@ if (!function_exists('add_variable_product')) :
         $author = empty( $data['author'] ) ? '1' : $data['author'];
         $product_slug = $data['product_slug'];
 
-        $post_status = get_page_by_path( $product_slug );
-        if (!$post_status)
+        /* search product by slug/post_name */
+        $post_status = get_page_by_path( $product_slug, OBJECT, 'product' );
+        if (empty($post_status))
         {
+            /* post new product */
             $post_data = array(
                 "post_author"       =>  $author,
                 "post_name"         =>  $product_slug,
@@ -91,12 +93,12 @@ if (!function_exists('add_variable_product')) :
 
             if (is_array($allvariations) && empty($allvariations))
             {
-                // update simple product
+                /* update simple product basic details */
                 $modifiers = array("sku","price","sale_price","regular_price","purchase_note","sold_individually");
                 foreach ($modifiers as $modifier)
                 {
-
-                    if (isset($data[$modifier])) {
+                    if (isset($data[$modifier]))
+                    {
                         $status = get_post_meta($product_id, '_'.$modifier );
                         if (empty($status)) {
                             add_post_meta( $product_id, '_'.$modifier, $data[$modifier] );
@@ -107,7 +109,7 @@ if (!function_exists('add_variable_product')) :
                 }
             
             } else {
-                // add variation along with attributes and price
+                /* add variation along with attributes and price */
                 wp_set_object_terms($product_id, 'variable', 'product_type');
                 $product = wc_get_product($product_id);
                 $variation_post_schema = array(
@@ -158,7 +160,7 @@ if (!function_exists('add_variable_product')) :
                             wp_set_object_terms( $product_id, $option, $taxonomy, true );
                             $option_term_ids[] = get_term_by( 'name', $option, $taxonomy )->term_id;
 
-                            // assign variable labels
+                            /* assign variable labels */
                             $term_slug = get_term_by('name', $option, $taxonomy )->slug;
                             $post_term_names = wp_get_post_terms( $product_id, $taxonomy, array('fields' => 'names') );
                             if( !in_array($option, $post_term_names)) {
@@ -190,7 +192,7 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
-            // specifications
+            /* static specifications */
             if (is_array($specifications) && !empty($specifications))
             {
                 $specs_attributes = array();
@@ -227,7 +229,7 @@ if (!function_exists('add_variable_product')) :
                         wp_set_object_terms( $product_id, $option, $taxonomy, true );
                         $option_term_ids[] = get_term_by( 'name', $option, $taxonomy )->term_id;
 
-                        // assign variable labels
+                        /* assign variable labels */
                         $term_slug = get_term_by('name', $option, $taxonomy )->slug;
                         $post_term_names = wp_get_post_terms( $product_id, $taxonomy, array('fields' => 'names') );
                         if( !in_array($option, $post_term_names)) {
@@ -244,10 +246,10 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
-            // update variable and non-variable specifications at once
+            /* update variable and non-variable specifications at once */
             update_post_meta( $product_id, '_product_attributes', $attributes );
 
-            // update images
+            /* update images */
             if (is_array($allimages) && !empty($allimages))
             {
                 include_once( ABSPATH . 'wp-admin/includes/image.php' );
@@ -260,12 +262,15 @@ if (!function_exists('add_variable_product')) :
                     $uploaddir = wp_upload_dir();
                     $uploadfile = $uploaddir['path'] . '/' . $filename;
 
-                    // not working for 3m.com images
-                    // $contents= file_get_contents($imageurl);
-                    // $savefile = fopen($uploadfile, 'w');
-                    // fwrite($savefile, $contents);
-                    // fclose($savefile);
+                    /* doesnt work for few websites including 3m.com */
+                    /*
+                        $contents= file_get_contents($imageurl);
+                        $savefile = fopen($uploadfile, 'w');
+                        fwrite($savefile, $contents);
+                        fclose($savefile);
+                    */
 
+                    /* reliable method for downloading images */
                     $authority_url = explode("/", $imageurl)[2];
                     $fp = fopen ($uploadfile, 'w+');
                     $ch = curl_init();
@@ -309,7 +314,7 @@ if (!function_exists('add_variable_product')) :
                     wp_update_attachment_metadata( $attach_id, $attach_data ); 
                 }
 
-                // attach images
+                /* attach images */
                 if (!empty($attachIds))
                 {
                     $thumbnail = $attachIds[0];
@@ -319,7 +324,7 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
-            // document attachment tab
+            /* document attachment tab */
             if (isset($attachtab) && $attachtab != "")
             {
                 $status = get_post_meta($product_id, '_woodmart_product_custom_tab_title' );
@@ -333,7 +338,7 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
-            // yoast SEO details
+            /* add yoast canonical url */
             if (isset($data['canonical_url'])) {
                 $status = get_post_meta($product_id, '_yoast_wpseo_canonical' );
                 if (empty($status)) {
@@ -341,6 +346,7 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
+            /* add yoast meta title */
             if (isset($data['meta_title'])) {
                 $status = get_post_meta($product_id, '_yoast_wpseo_title' );
                 if (empty($status)) {
@@ -348,6 +354,7 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
+            /* add yoast meta description */
             if (isset($data['meta_description'])) {
                 $status = get_post_meta($product_id, '_yoast_wpseo_metadesc' );
                 if (empty($status)) {
@@ -355,6 +362,7 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
+            /* add yoast focus keywords */
             if (isset($data['focus_keyword'])) {
                 $status = get_post_meta($product_id, '_yoast_wpseo_focuskw' );
                 if (empty($status)) {
@@ -362,6 +370,7 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
+            /* add yith brand */
             if (isset($data['yith_brand'])) {
                 $brandid = term_exists($data['yith_brand'], "yith_product_brand");
                 wp_set_object_terms( $product_id, intval($brandid['term_id']), "yith_product_brand" );
@@ -370,6 +379,36 @@ if (!function_exists('add_variable_product')) :
             $response = new WP_REST_Response( array("product_id" => $product_id, "attachIds" => $attachIds, "post_data" => $post_data) );
             $response->set_status(200);
             return $response;
+        
+        } else {
+
+            /* product already exists */
+            $product_id = $post_status->ID;
+            $product = wc_get_product($product_id);
+            $attributes = $product->attributes;
+            if (isset($attributes) && empty($attributes)) {
+                /* update simple product basic details */
+                $modifiers = array("sku","price","sale_price","regular_price","purchase_note","sold_individually");
+                foreach ($modifiers as $modifier)
+                {
+                    if (isset($data[$modifier]))
+                    {
+                        $status = get_post_meta($product_id, '_'.$modifier );
+                        if (empty($status)) {
+                            add_post_meta( $product_id, '_'.$modifier, $data[$modifier] );
+                        } else {
+                            update_post_meta( $product_id, '_'.$modifier, $data[$modifier] );                    
+                        }
+                    }
+                }
+            } else {
+                /* variable product */
+            }
+
+            $response = new WP_REST_Response( array("product_id" => $product_id) );
+            $response->set_status(200);
+            return $response;
+        
         }
     }
 endif;
