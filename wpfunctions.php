@@ -6,7 +6,7 @@ Custom WooCommerce API for posting bulk products
 @Author: Janib Soomro
 @Contact: soomrojb@gmail.com | +92-333-3640375
 @Dated: 07/16/2022
-@Updated: 08/03/2022
+@Updated: 08/24/2022
 ############################################################
 */
 
@@ -35,28 +35,32 @@ if (!function_exists('add_variable_product')) :
         $attachIds = array();
         $categoryIds = array();
         $attachtab = $data['attachments'];
-        $focuskeywords = $data['focus_keywords'];
+        $focuskeyword = $data['focus_keywords'];
         $specifications = $data['specifications'];
         $attributes = array();
         $brandid = 0;
+        $long_description = $data["long_description"];
+        $short_description = $data["short_description"];
  
         $postname = $data['product_title'];
         $author = empty( $data['author'] ) ? '1' : $data['author'];
+        $post_status = empty( $data['post_status'] ) ? 'publish' : $data['post_status'];
+        $ping_status = empty( $data['ping_status'] ) ? 'open' : $data['ping_status'];
         $product_slug = $data['product_slug'];
 
         /* search product by slug/post_name */
-        $post_status = get_page_by_path( $product_slug, OBJECT, 'product' );
-        if (empty($post_status))
+        $post_exists = get_page_by_path( $product_slug, OBJECT, 'product' );
+        if (empty($post_exists))
         {
             /* post new product */
             $post_data = array(
                 "post_author"       =>  $author,
                 "post_name"         =>  $product_slug,
                 "post_title"        =>  $postname,
-                "post_content"      =>  $data["long_description"],
-                "post_excerpt"      =>  $data["short_description"],
-                "post_status"       =>  "publish",
-                "ping_status"       =>  "closed",
+                "post_content"      =>  $long_description,
+                "post_excerpt"      =>  $short_description,
+                "post_status"       =>  $post_status,
+                "ping_status"       =>  $ping_status,
                 "post_type"         =>  "product"
             );
 
@@ -184,17 +188,65 @@ if (!function_exists('add_variable_product')) :
                         );
                     }
 
-                    if (isset($variation['sku'])) {
+                    if (isset($variation['sku']) && !empty($variation['sku'])) {
                         $variationobj->set_sku( $variation['sku'] );
                     }
-                    if (isset($variation['sale_price'])) {
+                    
+                    if (isset($variation['sale_price']) && !empty($variation['sale_price'])) {
                         $variationobj->set_sale_price( $variation['sale_price'] );
                     }
-                    if (isset($variation['regular_price'])) {
+
+                    if (isset($variation['sale_start']) && !empty($variation['sale_start'])) {
+                        $variationobj->set_date_on_sale_from( $variation['sale_start'] );
+                    }
+
+                    if (isset($variation['sale_end']) && !empty($variation['sale_end'])) {
+                        $variationobj->set_date_on_sale_to( $variation['sale_end'] );
+                    }
+
+                    if (isset($variation['back_orders']) && !empty($variation['back_orders'])) {
+                        $back_order = $variation['back_order'];
+                        $back_order_options = array("yes","no");
+                        if (!in_array($back_order, $back_order_options)) {
+                            $back_order = "no";
+                        }
+                        $variationobj->set_backorders( $back_order );
+                        $variationobj->set_stock_quantity("");
+                    }
+
+                    if (isset($variation['regular_price']) && !empty($variation['regular_price'])) {
                         $variationobj->set_regular_price( $variation['regular_price'] );
                     }
-                    $variationobj->set_manage_stock(false);
-                    $variationobj->set_weight('');
+
+                    if (isset($variation['manage_stock']) && !empty($variation['manage_stock'])) {
+                        $manage_stock = $variation['manage_stock'];
+                        $manage_stock_options = array(true, false);
+                        if (!in_array($manage_stock, $manage_stock_options)) {
+                            $manage_stock = false;
+                        }
+                        $variationobj->set_manage_stock( $manage_stock );
+                    }
+
+                    if (isset($variation['weight']) && !empty($variation['weight'])) {
+                        $variationobj->set_weight($variation['weight']);
+                    }
+
+                    if (isset($variation['length']) && !empty($variation['length'])) {
+                        $variationobj->set_length($variation['length']);
+                    }
+
+                    if (isset($variation['height']) && !empty($variation['height'])) {
+                        $variationobj->set_height($variation['height']);
+                    }
+
+                    if (isset($variation['width']) && !empty($variation['width'])) {
+                        $variationobj->set_width($variation['width']);
+                    }
+
+                    if (isset($variation['short_description']) && !empty($variation['short_description'])) {
+                        $variationobj->set_description($variation['short_description']);
+                    }
+
                     $variationobj->save();
                 }
             }
@@ -260,8 +312,9 @@ if (!function_exists('add_variable_product')) :
             if (is_array($allimages) && !empty($allimages))
             {
                 include_once( ABSPATH . 'wp-admin/includes/image.php' );
-                foreach ($allimages as $imageurl)
+                foreach ($allimages as $imageobj)
                 {
+                    $imageurl = $imageobj['href'];
                     $rawimgname = end(explode('/', $imageurl));
                     $imageextn = end(explode(".", $rawimgname));
                     $uniq_name = date('dmY').''.(int) microtime(true); 
@@ -304,21 +357,44 @@ if (!function_exists('add_variable_product')) :
                     $response = curl_exec($ch);
                     curl_close($ch);
                     fclose($fp);
-                    
+
+                    $img_title = "";
+                    $img_caption = "";
+                    $img_desription = "";
+
+                    if (isset($imageobj['title']) && !empty($imageobj['title'])) {
+                        $img_title = $imageobj['title'];
+                    }
+
+                    if (isset($imageobj['caption']) && !empty($imageobj['caption'])) {
+                        $img_caption = $imageobj['caption'];
+                    }
+
+                    if (isset($imageobj['description']) && !empty($imageobj['description'])) {
+                        $img_desription = $imageobj['description'];
+                    }
+
                     $wp_filetype = wp_check_filetype(basename($filename), null );
                     $attachment = array(
                         'post_mime_type' => $wp_filetype['type'],
-                        'post_title' => $filename,
-                        'post_content' => '',
+                        'post_title' => $img_title,
+                        'post_excerpt' => $img_caption,
+                        'post_content' => $img_desription,
                         'post_status' => 'inherit'
                     );
                     
                     $attach_id = wp_insert_attachment( $attachment, $uploadfile );
+
+                    /* update image alt separately */
+                    if (isset($imageobj['alt']) && !empty($imageobj['alt'])) {
+                        update_post_meta($attach_id, '_wp_attachment_image_alt', $imageobj['alt']);
+                    }
+
                     $attachIds[] = $attach_id;
                     $imagenew = get_post( $attach_id );
                     $fullsizepath = get_attached_file( $imagenew->ID );
                     $attach_data = wp_generate_attachment_metadata( $attach_id, $fullsizepath );
-                    wp_update_attachment_metadata( $attach_id, $attach_data ); 
+                    wp_update_attachment_metadata( $attach_id, $attach_data );
                 }
 
                 /* attach images */
@@ -331,8 +407,29 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
+            /* update shipping details */
+            if (isset($data['shipping']) && is_array($data['shipping'])) {
+                $shipping_dict = $data['shipping'];
+                if (isset($shipping_dict['weight']) && !empty($shipping_dict['weight'])) {
+                    add_post_meta( $product_id, "_weight", $shipping_dict['weight'] );
+                }
+
+                if (isset($shipping_dict['length']) && !empty($shipping_dict['length'])) {
+                    add_post_meta( $product_id, "_length", $shipping_dict['length'] );
+                }
+
+                if (isset($shipping_dict['height']) && !empty($shipping_dict['height'])) {
+                    add_post_meta( $product_id, "_height", $shipping_dict['height'] );
+                }
+
+                if (isset($shipping_dict['width']) && !empty($shipping_dict['width'])) {
+                    add_post_meta( $product_id, "_width", $shipping_dict['width'] );
+                }
+
+            }
+
             /* document attachment tab */
-            if (isset($attachtab) && $attachtab != "")
+            if (isset($attachtab) && !empty($attachtab))
             {
                 $status = get_post_meta($product_id, '_woodmart_product_custom_tab_title' );
                 if (empty($status)) {
@@ -346,7 +443,7 @@ if (!function_exists('add_variable_product')) :
             }
 
             /* add yoast canonical url */
-            if (isset($data['canonical_url'])) {
+            if (isset($data['canonical_url']) && !empty($data['canonical_url'])) {
                 $status = get_post_meta($product_id, '_yoast_wpseo_canonical' );
                 if (empty($status)) {
                     add_post_meta( $product_id, "_yoast_wpseo_canonical", $data['canonical_url'] );
@@ -354,7 +451,7 @@ if (!function_exists('add_variable_product')) :
             }
 
             /* add yoast meta title */
-            if (isset($data['meta_title'])) {
+            if (isset($data['meta_title']) && !empty($data['meta_title'])) {
                 $status = get_post_meta($product_id, '_yoast_wpseo_title' );
                 if (empty($status)) {
                     add_post_meta( $product_id, "_yoast_wpseo_title", $data['meta_title'] );
@@ -362,7 +459,7 @@ if (!function_exists('add_variable_product')) :
             }
 
             /* add yoast meta description */
-            if (isset($data['meta_description'])) {
+            if (isset($data['meta_description']) && !empty($data['meta_description'])) {
                 $status = get_post_meta($product_id, '_yoast_wpseo_metadesc' );
                 if (empty($status)) {
                     add_post_meta( $product_id, "_yoast_wpseo_metadesc", $data['meta_description'] );
@@ -370,15 +467,15 @@ if (!function_exists('add_variable_product')) :
             }
 
             /* add yoast focus keywords */
-            if (isset($data['focus_keyword'])) {
+            if (isset($focuskeyword) && !empty($focuskeyword)) {
                 $status = get_post_meta($product_id, '_yoast_wpseo_focuskw' );
                 if (empty($status)) {
-                    add_post_meta( $product_id, "_yoast_wpseo_focuskw", $data['focus_keyword'] );
+                    add_post_meta( $product_id, "_yoast_wpseo_focuskw", $focuskeyword );
                 }
             }
 
             /* add yith brand */
-            if (isset($data['yith_brand'])) {
+            if (isset($data['yith_brand']) && !empty($data['yith_brand'])) {
                 $brandid = term_exists($data['yith_brand'], "yith_product_brand");
                 wp_set_object_terms( $product_id, intval($brandid['term_id']), "yith_product_brand" );
             }
