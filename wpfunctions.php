@@ -35,7 +35,7 @@ if (!function_exists('add_variable_product')) :
         $attachIds = array();
         $categoryIds = array();
         $attachtab = $data['attachments'];
-        $focuskeyword = $data['focus_keywords'];
+        $focuskeyword = $data['focus_keyword'];
         $specifications = $data['specifications'];
         $attributes = array();
         $brandid = 0;
