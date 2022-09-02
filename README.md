@@ -20,7 +20,7 @@ content-type: application/json
     "product_title": "Product title",
     "product_slug": "product_slug",
     "post_status": "publish",
-    "ping_status": "ping_status",
+    "ping_status": "open",
     "long_description": "This is long_description",
     "short_description": "This is short_description",
     "canonical_url": "http://demo.canonical.com",
