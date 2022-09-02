@@ -6,7 +6,7 @@ Custom WooCommerce API for posting bulk products
 @Author: Janib Soomro
 @Contact: soomrojb@gmail.com | +92-333-3640375
 @Dated: 07/16/2022
-@Updated: 08/24/2022
+@Updated: 09/02/2022
 ############################################################
 */
 
@@ -487,7 +487,7 @@ if (!function_exists('add_variable_product')) :
         } else {
 
             /* product already exists */
-            $product_id = $post_status->ID;
+            $product_id = $post_exists->ID;
             $product = wc_get_product($product_id);
 
             /* identify product-type */
