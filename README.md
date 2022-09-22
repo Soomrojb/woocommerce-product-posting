@@ -24,6 +24,7 @@ content-type: application/json
     "long_description": "This is long_description",
     "short_description": "This is short_description",
     "canonical_url": "http://demo.canonical.com",
+    "source_url": "http://product.fetching.source.com",
     "meta_title": "This is meta title",
     "meta_description": "This is meta_description",
     "focus_keyword": "First focus keyword",
@@ -53,6 +54,7 @@ content-type: application/json
         }
     ],
     "categories": ["Clamps", "Sleeves and Ferrules", "Teaser"],
+    "post_in_all_categories": true,
     "specifications": {
         "Battery Life": ["6 Hour"],
         "Battery Type": ["Economy Battery"],
