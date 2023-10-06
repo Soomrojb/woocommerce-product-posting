@@ -55,6 +55,7 @@ content-type: application/json
     ],
     "categories": ["Clamps", "Sleeves and Ferrules", "Teaser"],
     "post_in_all_categories": true,
+    "create_categories_hierarchy": false,
     "specifications": {
         "Battery Life": ["6 Hour"],
         "Battery Type": ["Economy Battery"],
