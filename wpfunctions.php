@@ -61,7 +61,7 @@ if (!function_exists('add_variable_product')) :
             // Creating the product (post data)
             $product_id = wp_insert_post( $post_data );
 
-            // add/update categories
+            /** Add/Update categories */
             if (is_array($data['categories']) && !empty($data['categories']))
             {
                 include_once( ABSPATH . "/wp-admin/includes/taxonomy.php" );
@@ -70,36 +70,59 @@ if (!function_exists('add_variable_product')) :
                 $category_flag = true;
                 if ( isset($data['post_in_all_categories']) )
                 {
-                    if ($data['post_in_all_categories'] === false)
+                    if ($data['post_in_all_categories'] == false)
                     {
+                        // post in last category only
                         $category_flag = false;
                     }
                 }
 
-                $categoryIds = [];
+                // create hierarchy in categories
+                $category_hierarchy = true;
+                if ( isset($data['create_categories_hierarchy']) )
+                {
+                    if ($data['create_categories_hierarchy'] == false)
+                    {
+                        $category_hierarchy = false;
+                    }
+                }
+
+                $categoryIds = array();
                 $lastcatid = null;
                 $cattaxonomy = "product_cat";
                 foreach ($data['categories'] as $category) {
-                    $catgid = term_exists($category, $cattaxonomy, $lastcatid);
+
+                    if ($category_hierarchy == true) {
+                        $catgid = term_exists($category, $cattaxonomy, $lastcatid);
+                    } else {
+                        $catgid = term_exists($category, $cattaxonomy, "");
+                    }
+
                     if ($catgid) {
-                        $categoryIds[] = $catgid['term_id'];
+                        // category already exists
+                        array_push( $categoryIds, $catgid['term_id'] );
                         $lastcatid = $catgid['term_id'];
                     } else {
+                        // make a new category
                         $catgarray = array(
                             "taxonomy" => $cattaxonomy,
                             "cat_name" => $category,
                             "category_description" => sanitize_title($category),
-                            "category_parent" => $lastcatid
+                            "category_parent" => null
                         );
+                        // add with parent if true
+                        if ($category_hierarchy == true) {
+                            $catgarray['category_parent'] = $lastcatid;
+                        }
                         $catgid = wp_insert_category($catgarray);
                         $lastcatid = $catgid;
-                        $categoryIds[] = $catgid;
+                        array_push( $categoryIds, $catgid['term_id'] );
                     }
                     wp_set_object_terms( $product_id, intval($lastcatid), $cattaxonomy, $category_flag );
                 }
             }
 
-            /* add tags */
+            /** Add tags */
             if (isset($data['tags']) && !empty($data['tags']))
             {
                 $tags = $data['tags'];
@@ -108,7 +131,7 @@ if (!function_exists('add_variable_product')) :
 
             if (is_array($data['variations']) && empty($data['variations']))
             {
-                /* update simple product basic details */
+                /** Add simple product with basic details */
                 $modifiers = array("sku","price","sale_price","regular_price","purchase_note","sold_individually","stock_status");
                 foreach ($modifiers as $modifier)
                 {
@@ -125,7 +148,7 @@ if (!function_exists('add_variable_product')) :
                 }
 
             } else {
-                /* add variation along with attributes and price */
+                /** Add variation along with attributes and price */
                 wp_set_object_terms($product_id, 'variable', 'product_type');
                 $product = wc_get_product($product_id);
                 $variation_post_schema = array(
@@ -136,6 +159,64 @@ if (!function_exists('add_variable_product')) :
                     'post_type'   => 'product_variation',
                     'guid'        => $product->get_permalink()
                 );
+
+                /** Static specifications */
+                if (is_array($data['specifications']) && !empty($data['specifications']))
+                {
+                    $specs_attributes = array();
+                    foreach ($data['specifications'] as $attrname => $attrvalues )
+                    {
+                        $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attrname);
+                        if(!taxonomy_exists( $taxonomy))
+                        {
+                            $attribute_id = wc_create_attribute(array(
+                                'name'         => ucfirst($attrname),
+                                'slug'         => wc_sanitize_taxonomy_name($attrname),
+                                'type'         => 'select',
+                                'order_by'     => 'menu_order',
+                                'has_archives' => false,
+                            ));
+
+                            register_taxonomy(
+                                $taxonomy,
+                                'product_variation',
+                                array(
+                                    'hierarchical' => false,
+                                    'label' => ucfirst($attrname),
+                                    'query_var' => true,
+                                    'rewrite' => array('slug' => sanitize_title($attrname)),
+                                )
+                            );
+                        }
+
+                        $option_term_ids = array();
+                        foreach($attrvalues as $option)
+                        {
+                            if (!term_exists($option, $taxonomy))
+                            {
+                                wp_insert_term($option, $taxonomy);
+                            }
+
+                            wp_set_object_terms( $product_id, $option, $taxonomy, true );
+                            $option_term_ids[] = get_term_by( 'name', $option, $taxonomy )->term_id;
+
+                            /** Assign variable labels */
+                            $term_slug = get_term_by('name', $option, $taxonomy )->slug;
+                            $post_term_names = wp_get_post_terms( $product_id, $taxonomy, array('fields' => 'names') );
+                            if( !in_array($option, $post_term_names))
+                            {
+                                wp_set_post_terms( $product_id, $option, $taxonomy, true );
+                            }
+                        }
+                        $attributes[$taxonomy] = array(
+                            'name'              => $taxonomy,
+                            'value'             => $option_term_ids,
+                            'is_visible'        => 1,
+                            'is_variation'      => 0,
+                            'is_taxonomy'       => 1
+                        );
+                    }
+                }
 
                 foreach( $data['variations'] as $variation )
                 {
@@ -178,7 +259,7 @@ if (!function_exists('add_variable_product')) :
                             wp_set_object_terms( $product_id, $option, $taxonomy, true );
                             $option_term_ids[] = get_term_by( 'name', $option, $taxonomy )->term_id;
 
-                            /* assign variable labels */
+                            /** Assign variable labels */
                             $term_slug = get_term_by('name', $option, $taxonomy )->slug;
                             $post_term_names = wp_get_post_terms( $product_id, $taxonomy, array('fields' => 'names') );
                             if( !in_array($option, $post_term_names))
@@ -190,9 +271,9 @@ if (!function_exists('add_variable_product')) :
                         $attributes[$taxonomy] = array(
                             'name'              => $taxonomy,
                             'value'             => $option_term_ids,
-                            'is_visible'        => true,
-                            'is_variation'      => true,
-                            'is_taxonomy'       => '1'
+                            'is_visible'        => 1,
+                            'is_variation'      => 1,
+                            'is_taxonomy'       => 1
                         );
                     }
 
@@ -216,7 +297,7 @@ if (!function_exists('add_variable_product')) :
                         $variationobj->set_date_on_sale_to( $variation['sale_end'] );
                     }
 
-                    if (isset($variation['back_orders']) && !empty($variation['back_orders']))
+                    if (isset($variation['back_order']) && !empty($variation['back_order']))
                     {
                         $back_order = $variation['back_order'];
                         $back_order_options = array("yes","no");
@@ -273,68 +354,12 @@ if (!function_exists('add_variable_product')) :
                 }
             }
 
-            /* static specifications */
-            if (is_array($data['specifications']) && !empty($data['specifications']))
-            {
-                $specs_attributes = array();
-                foreach ($data['specifications'] as $attrname => $attrvalues )
-                {
-                    $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attrname);
-                    if(!taxonomy_exists( $taxonomy))
-                    {
-                        $attribute_id = wc_create_attribute(array(
-                            'name'         => ucfirst($attrname),
-                            'slug'         => wc_sanitize_taxonomy_name($attrname),
-                            'type'         => 'select',
-                            'order_by'     => 'menu_order',
-                            'has_archives' => false,
-                        ));
-
-                        register_taxonomy(
-                            $taxonomy,
-                            'product_variation',
-                            array(
-                                'hierarchical' => false,
-                                'label' => ucfirst($attrname),
-                                'query_var' => true,
-                                'rewrite' => array('slug' => sanitize_title($attrname)),
-                            )
-                        );
-                    }
-
-                    $option_term_ids = array();
-                    foreach($attrvalues as $option)
-                    {
-                        if (!term_exists($option, $taxonomy))
-                        {
-                            wp_insert_term($option, $taxonomy);
-                        }
-
-                        wp_set_object_terms( $product_id, $option, $taxonomy, true );
-                        $option_term_ids[] = get_term_by( 'name', $option, $taxonomy )->term_id;
-
-                        /* assign variable labels */
-                        $term_slug = get_term_by('name', $option, $taxonomy )->slug;
-                        $post_term_names = wp_get_post_terms( $product_id, $taxonomy, array('fields' => 'names') );
-                        if( !in_array($option, $post_term_names))
-                        {
-                            wp_set_post_terms( $product_id, $option, $taxonomy, true );
-                        }
-                    }
-                    $attributes[$taxonomy] = array(
-                        'name'              => $taxonomy,
-                        'value'             => $option_term_ids,
-                        'is_visible'        => true,
-                        'is_variation'      => false,
-                        'is_taxonomy'       => '1'
-                    );
-                }
+            /** Update variable and non-variable specifications at once */
+            if (is_array($attributes) && !empty($attributes)) {
+                update_post_meta( $product_id, '_product_attributes', $attributes );
             }
 
-            /* update variable and non-variable specifications at once */
-            update_post_meta( $product_id, '_product_attributes', $attributes );
-
-            /* update images */
+            /** Update images */
             if (is_array($data['images']) && !empty($data['images']))
             {
                 include_once( ABSPATH . 'wp-admin/includes/image.php' );
@@ -344,7 +369,7 @@ if (!function_exists('add_variable_product')) :
                     $rawimgname = end(explode('/', $imageurl));
                     $imageextn = end(explode(".", $rawimgname));
                     $uniq_name = date('dmY').''.(int) microtime(true); 
-                    $filename = $uniq_name.'.'.$imageextn;
+                    $filename = $product_id . '--' . $uniq_name.'.'.$imageextn;
                     $uploaddir = wp_upload_dir();
                     $uploadfile = $uploaddir['path'] . '/' . $filename;
 
@@ -411,8 +436,9 @@ if (!function_exists('add_variable_product')) :
                         'post_content' => $img_desription,
                         'post_status' => 'inherit'
                     );
-                    
-                    $attach_id = wp_insert_attachment( $attachment, $uploadfile );
+
+                    /** Add image in Media and associate with current post */
+                    $attach_id = wp_insert_attachment( $attachment, $uploadfile, $product_id );
 
                     /* update image alt separately */
                     if (isset($imageobj['alt']) && !empty($imageobj['alt']))
